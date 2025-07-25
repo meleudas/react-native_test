@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, PanResponder, Dimensions, Text } from 'react-native';
+import { View, StyleSheet, PanResponder, Dimensions, Text, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import Header from './Header';
 import Day from './Day';
+import ToDoList from './ToDoList';
 
 const monthNames = [
   'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
@@ -75,11 +76,17 @@ export default function Calendar() {
     month: today.getMonth(),
   });
   const [calWidth, setCalWidth] = useState(350);
+  const [orientation, setOrientation] = useState('portrait');
+  const [tasks, setTasks] = useState({});
+  const [selectedDate, setSelectedDate] = useState(
+    today.toISOString().slice(0, 10)
+  );
 
   useEffect(() => {
     const onChange = () => {
-      const { width } = Dimensions.get('window');
+      const { width, height } = Dimensions.get('window');
       setCalWidth(width > 400 ? 350 : width - 20);
+      setOrientation(width > height ? 'landscape' : 'portrait');
     };
     Dimensions.addEventListener('change', onChange);
     onChange();
@@ -100,6 +107,7 @@ export default function Calendar() {
   };
   const handleToday = () => {
     setCurrent({ year: today.getFullYear(), month: today.getMonth() });
+    setSelectedDate(today.toISOString().slice(0, 10));
   };
 
   const panResponder = useRef(
@@ -117,26 +125,81 @@ export default function Calendar() {
     })
   ).current;
 
-  return (
-    <View
-      style={[styles.calendar]}
-      {...panResponder.panHandlers}
-    >
-      <Header
-        month={monthNames[current.month]}
-        year={current.year}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        onToday={handleToday}
-      />
-      <View style={{ overflow: 'hidden', height: gridHeight }}>
-        <MonthGrid days={days} daySize={daySize} />
+  // Відображення ToDoList справа у горизонтальному режимі, під календарем у вертикальному
+  if (orientation === 'landscape') {
+    return (
+      <View
+        style={[styles.calendar, { flexDirection: 'row' }]}
+        {...panResponder.panHandlers}
+      >
+        <View style={{ flex: 1 }}>
+          <Header
+            month={monthNames[current.month]}
+            year={current.year}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onToday={handleToday}
+          />
+          <View style={{ overflow: 'hidden', height: gridHeight }}>
+            <MonthGrid
+              days={days}
+              daySize={daySize}
+              onSelect={date => setSelectedDate(date)}
+              selectedDate={selectedDate}
+              tasks={tasks}
+            />
+          </View>
+        </View>
+        <View style={{ width: 320, marginLeft: 10 }}>
+          <ToDoList
+            tasks={tasks}
+            setTasks={setTasks}
+            selectedDate={selectedDate}
+          />
+        </View>
       </View>
-    </View>
+    );
+  }
+  // portrait: календар, потім ToDoList, поле вводу видно при відкритті клавіатури
+  return (
+    <>
+      <View style={styles.calendar} {...panResponder.panHandlers}>
+        <Header
+          month={monthNames[current.month]}
+          year={current.year}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onToday={handleToday}
+        />
+        <View style={{ overflow: 'hidden', height: gridHeight }}>
+          <MonthGrid
+            days={days}
+            daySize={daySize}
+            onSelect={date => setSelectedDate(date)}
+            selectedDate={selectedDate}
+            tasks={tasks}
+          />
+        </View>
+      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+        style={{ flex: 1, width: '100%' }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <View style={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+          <ToDoList
+            tasks={tasks}
+            setTasks={setTasks}
+            selectedDate={selectedDate}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </>
   );
 }
 
-function MonthGrid({ days, daySize }) {
+function MonthGrid({ days, daySize, onSelect, selectedDate, tasks }) {
   const today = new Date();
   return (
     <View style={styles.grid}>
@@ -150,15 +213,24 @@ function MonthGrid({ days, daySize }) {
           item.date.getDate() === today.getDate() &&
           item.date.getMonth() === today.getMonth() &&
           item.date.getFullYear() === today.getFullYear();
+        const dateStr = item.date.toISOString().slice(0, 10);
+        const hasTasks = tasks[dateStr] && tasks[dateStr].length > 0;
+        const isSelected = selectedDate === dateStr;
         return (
           <View key={idx} style={styles.cell}>
-            <Day
-              day={item.day}
-              isCurrent={!item.isOtherMonth}
-              isOtherMonth={item.isOtherMonth}
-              isToday={isToday}
-              daySize={daySize}
-            />
+            <TouchableOpacity onPress={() => onSelect(dateStr)}>
+              <Day
+                day={item.day}
+                isCurrent={!item.isOtherMonth}
+                isOtherMonth={item.isOtherMonth}
+                isToday={isToday}
+                daySize={daySize}
+                isSelected={isSelected}
+              />
+              {hasTasks && (
+                <View style={styles.dot} />
+              )}
+            </TouchableOpacity>
           </View>
         );
       })}
@@ -180,10 +252,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   cell: {
-    flexBasis: '14.285%', 
+    flexBasis: '14.285%',
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 0,
+    position: 'relative',
   },
   weekDayText: {
     fontSize: 13,
@@ -191,4 +264,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
   },
-}); 
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#2196F3',
+      position: 'absolute',
+      bottom: 8,
+      alignSelf: 'center',
+    }
+  });

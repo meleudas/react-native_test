@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function Day({ day = '', isCurrent, isOtherMonth, isToday }) {
+export default function Day({ day = '', isCurrent, isOtherMonth, isToday, isSelected }) {
   return (
-    <View style={[styles.day, isOtherMonth && styles.otherMonth, isToday && styles.today]}>
+    <View style={[styles.day, isOtherMonth && styles.otherMonth, isToday && styles.today, isSelected && styles.selected]}>
       <Text style={[styles.text, isCurrent && styles.current]}>{day}</Text>
     </View>
   );
@@ -34,5 +34,10 @@ const styles = StyleSheet.create({
   current: {
     fontWeight: 'bold',
     color: '#0077cc',
+  },
+  selected: {
+    borderWidth: 2,
+    borderColor: 'orange',
+    backgroundColor: '#fffbe6',
   },
 });
